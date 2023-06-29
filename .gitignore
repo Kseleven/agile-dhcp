@@ -7,6 +7,8 @@
 *.dll
 *.so
 *.dylib
+dhcp_client4
+dhcp_client6
 
 # Test binary, built with `go test -c`
 *.test
@@ -19,3 +21,4 @@
 
 # Go workspace file
 go.work
+.idea/
