@@ -595,7 +595,7 @@ func (o Option58) Encode() []byte {
 }
 
 func (o Option58) Decode(b []byte) Option58 {
-	o.Code = 51
+	o.Code = 58
 	o.Length = b[0]
 	o.RenewalTime = b[1:]
 	return o
@@ -643,7 +643,7 @@ func (o Option59) Encode() []byte {
 }
 
 func (o Option59) Decode(b []byte) Option59 {
-	o.Code = 51
+	o.Code = 59
 	o.Length = b[0]
 	o.RebindingTime = b[1:]
 	return o

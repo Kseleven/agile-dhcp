@@ -149,6 +149,7 @@ func (c *Conn) handlerResponse(addr *net.UDPAddr, b []byte) bool {
 		requestMsg := GenRequestMessage(m, options...)
 		c.SecondsElapsed = requestMsg.SecondsElapsed
 		c.CurrentMessageType = requestMsg.MessageType
+		fmt.Printf("send message---->:\n%s\n", m.String())
 		if _, err := c.Write(requestMsg.Encode()); err != nil {
 			fmt.Printf("write request message failed:%s\n", err.Error())
 			return false
