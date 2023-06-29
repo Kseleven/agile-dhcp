@@ -18,7 +18,7 @@ func main() {
 
 	flag.Parse()
 
-	c, err := dhcp4.NewDHCPRequest("10.0.0.68", "joker", "00:00:00:00:00:01")
+	c, err := dhcp4.NewDHCPRequest(serverHost, hostName, mac)
 	if err != nil {
 		panic(err)
 	}
