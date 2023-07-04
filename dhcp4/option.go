@@ -484,7 +484,7 @@ func GenOption55() Option55 {
 	//option119: DNS Domain Search List
 	//option121: Classless Static Route
 	//option252: Private/Proxy autodiscovery
-	var parameters = []byte{1, 3, 6, 15, 46, 108, 114, 119, 121, 252}
+	var parameters = []byte{1, 3, 6, 15, 44, 46, 95, 108, 114, 119, 121, 252}
 	return Option55{Code: 55, Length: uint8(len(parameters)), Parameters: parameters}
 }
 

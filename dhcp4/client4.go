@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const MaxRetryNum = 1
+
 type Conn struct {
 	*net.UDPConn
 	TransactionID      uint32
@@ -16,6 +18,7 @@ type Conn struct {
 	Mac                string
 	MacByte            []byte
 	doneChan           chan bool
+	retry              int
 }
 
 func (c *Conn) Close() {
@@ -60,7 +63,7 @@ func NewDHCPRequest(serverIP string, hostName, mac string) (c *Conn, err error) 
 	c.UDPConn = conn
 	go c.listenUDP()
 
-	return c, c.RequireAddress()
+	return c, c.Discovery()
 }
 
 func (c *Conn) listenUDP() {
@@ -95,7 +98,6 @@ func (c *Conn) listenUDP() {
 
 func (c *Conn) WaitDone() {
 	<-c.doneChan
-	fmt.Println("wait done")
 	c.Close()
 }
 
@@ -104,7 +106,7 @@ func (c *Conn) done() {
 	fmt.Println("done")
 }
 
-func (c *Conn) RequireAddress() error {
+func (c *Conn) Discovery() error {
 	options := []OptionInter{
 		GenOption51(7776000),
 		GenOption57(1500),
@@ -138,9 +140,18 @@ func (c *Conn) handlerResponse(addr *net.UDPAddr, b []byte) bool {
 	fmt.Println(m.String())
 
 	if m.MessageType == MessageTypeNak {
+		c.retry++
+		if c.CurrentMessageType == MessageTypeDiscover && c.retry < MaxRetryNum {
+			if err := c.Discovery(); err != nil {
+				fmt.Printf("write request message failed:%s\n", err.Error())
+				return false
+			}
+			return false
+		}
 		return true
 	}
 
+	c.retry = 0
 	if c.CurrentMessageType == MessageTypeDiscover && m.MessageType == MessageTypeOffer {
 		var options []OptionInter
 		if c.HostName != "" {
