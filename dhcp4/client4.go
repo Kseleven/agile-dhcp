@@ -3,7 +3,7 @@ package dhcp4
 import (
 	"fmt"
 	"net"
-	"strings"
+	"time"
 )
 
 const MaxRetryNum = 1
@@ -78,12 +78,15 @@ func (c *Conn) listenUDP() {
 	}
 	defer conn.Close()
 
+	now := time.Now()
+	conn.SetReadDeadline(now.Add(time.Second * 3))
 	for {
 		data := make([]byte, 576)
 		length, rAddr, err := conn.ReadFromUDP(data)
 		if err != nil {
 			fmt.Printf("read message failed:%s\n", err)
-			if strings.Contains(err.Error(), "closed network connection") {
+			if op, ok := err.(*net.OpError); ok && (op.Timeout() || op.Temporary()) {
+				c.done()
 				return
 			}
 			continue
@@ -93,6 +96,9 @@ func (c *Conn) listenUDP() {
 			c.done()
 			return
 		}
+
+		now = time.Now()
+		conn.SetReadDeadline(now.Add(time.Second * 3))
 	}
 }
 
@@ -146,6 +152,10 @@ func (c *Conn) handlerResponse(addr *net.UDPAddr, b []byte) bool {
 				fmt.Printf("write request message failed:%s\n", err.Error())
 				return false
 			}
+			return false
+		}
+
+		if addr.String() != c.DhcpServerHost {
 			return false
 		}
 		return true
