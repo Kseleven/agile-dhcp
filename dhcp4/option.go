@@ -22,6 +22,7 @@ const (
 	MessageTypeAck
 	MessageTypeNak
 	MessageTypeRelease
+	MessageTypeInform
 )
 
 func (o MessageType) String() string {
@@ -40,6 +41,8 @@ func (o MessageType) String() string {
 		return "NAK"
 	case MessageTypeRelease:
 		return "Release"
+	case MessageTypeInform:
+		return "Inform"
 	default:
 		return ""
 	}
@@ -426,6 +429,10 @@ func (o Option54) GetCode() uint8 {
 	return o.Code
 }
 
+func GenOption54(server []byte) Option54 {
+	return Option54{Code: 54, Length: 4, ServerIdentifier: server}
+}
+
 func (o Option54) Encode() []byte {
 	return append([]byte{o.Code, o.Length}, o.ServerIdentifier...)
 }
@@ -484,7 +491,7 @@ func GenOption55() Option55 {
 	//option119: DNS Domain Search List
 	//option121: Classless Static Route
 	//option252: Private/Proxy autodiscovery
-	var parameters = []byte{1, 3, 6, 15, 44, 46, 95, 108, 114, 119, 121, 252}
+	var parameters = []byte{1, 3, 6, 15, 44, 46, 95, 108, 138, 114, 119, 121, 252}
 	return Option55{Code: 55, Length: uint8(len(parameters)), Parameters: parameters}
 }
 
@@ -778,6 +785,62 @@ func (o Option108) String() string {
 }
 
 func (o Option108) GetCode() uint8 {
+	return o.Code
+}
+
+/*Option138
+The DHCPv4 option for CAPWAP has the format shown in the following
+   figure:
+         0                   1
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6
+         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         |  option-code  | option-length |
+         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         |                               |
+         +       AC IPv4 Address         +
+         |                               |
+         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         |             ...               |
+         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   option-code:   OPTION_CAPWAP_AC_V4 (138)
+   option-length:   Length of the 'options' field in octets; MUST be a
+      multiple of four (4).
+   AC IPv4 Address:  IPv4 address of a CAPWAP AC that the WTP may use.
+      The ACs are listed in the order of preference for use by the WTP.
+*/
+type Option138 struct {
+	Code    uint8
+	Length  uint8
+	ACIPv4s []byte
+}
+
+func (o Option138) Encode() []byte {
+	return append([]byte{o.Code, o.Length}, o.ACIPv4s...)
+}
+
+func (o Option138) Decode(b []byte) Option138 {
+	o.Code = 138
+	o.ACIPv4s = b
+	return o
+}
+
+func (o Option138) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("Option:(")
+	buf.WriteString(strconv.FormatUint(uint64(o.Code), 10))
+	buf.WriteString(")")
+	buf.WriteString(" Length:")
+	buf.WriteString(strconv.FormatUint(uint64(o.Length), 10))
+	buf.WriteString(" AC IPv4 Address:")
+	for i := 0; i < int(o.Length); i += 4 {
+		buf.WriteString(net.IP(o.ACIPv4s[i : i+4]).String())
+		buf.WriteString(" ")
+	}
+
+	return buf.String()
+}
+
+func (o Option138) GetCode() uint8 {
 	return o.Code
 }
 

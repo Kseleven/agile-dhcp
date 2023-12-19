@@ -87,6 +87,58 @@ func GenDiscoverMessage(mac string, options ...OptionInter) *Message {
 	return m
 }
 
+func GenDeclineMessage(mac string, declineIP []byte, options ...OptionInter) *Message {
+	m := &Message{}
+	m.OpCode = 1
+	m.HardwareType = 1
+	m.HardwareLength = 6
+	m.Hops = 0
+	m.TransactionID = 0
+	m.SecondsElapsed = 0
+	m.Flags = 0
+	m.ClientIP = make([]byte, 4, 4)
+	m.YourIP = make([]byte, 4, 4)
+	m.NextServerIP = make([]byte, 4, 4)
+	m.RelayAgentIP = make([]byte, 4, 4)
+	m.ClientMAC, _ = GenClientHardware(mac)
+	m.ServerHostName = make([]byte, 64, 64)
+	m.BootFile = make([]byte, 128, 128)
+	m.MagicCookie = MagicCookie
+	m.Options = []OptionInter{GenOption53(MessageTypeDecline), GenOption55(), GenOption50(declineIP)}
+	for _, option := range options {
+		m.Options = append(m.Options, option)
+	}
+	m.Options = append(m.Options, GenOption255())
+	m.MessageType = MessageTypeDecline
+	return m
+}
+
+func GenReleaseMessage(mac string, releaseIP []byte, options ...OptionInter) *Message {
+	m := &Message{}
+	m.OpCode = 1
+	m.HardwareType = 1
+	m.HardwareLength = 6
+	m.Hops = 0
+	m.TransactionID = 0
+	m.SecondsElapsed = 0
+	m.Flags = 0
+	m.ClientIP = releaseIP
+	m.YourIP = make([]byte, 4, 4)
+	m.NextServerIP = make([]byte, 4, 4)
+	m.RelayAgentIP = make([]byte, 4, 4)
+	m.ClientMAC, _ = GenClientHardware(mac)
+	m.ServerHostName = make([]byte, 64, 64)
+	m.BootFile = make([]byte, 128, 128)
+	m.MagicCookie = MagicCookie
+	m.Options = []OptionInter{GenOption53(MessageTypeRelease), GenOption55()}
+	for _, option := range options {
+		m.Options = append(m.Options, option)
+	}
+	m.Options = append(m.Options, GenOption255())
+	m.MessageType = MessageTypeRelease
+	return m
+}
+
 func GenRequestMessage(offer *Message, options ...OptionInter) *Message {
 	m := &Message{}
 	m.OpCode = 1
@@ -207,6 +259,11 @@ func (m *Message) Decode(data []byte) {
 			options = append(options, o)
 		case 108:
 			options = append(options, Option108{}.Decode(buf.Next(5)))
+		case 138:
+			length := buf.Next(1)[0]
+			o := Option138{}.Decode(buf.Next(int(length)))
+			o.Length = length
+			options = append(options, o)
 		case 255:
 			options = append(options, Option255{}.Decode([]byte{255}))
 		default:

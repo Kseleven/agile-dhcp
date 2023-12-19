@@ -19,6 +19,8 @@ type Conn struct {
 	MacByte            []byte
 	doneChan           chan bool
 	retry              int
+	relay              []byte
+	ifnname            *net.Interface
 }
 
 func (c *Conn) Close() {
@@ -27,7 +29,11 @@ func (c *Conn) Close() {
 	}
 }
 
-func NewDHCPRequest(serverIP string, hostName, mac string) (c *Conn, err error) {
+func (c *Conn) isRelay() bool {
+	return !(c.relay[0] == 0 && c.relay[1] == 0 && c.relay[2] == 0 && c.relay[3] == 0)
+}
+
+func NewDHCPRequest(serverIP string, relay string, hostName, mac string) (c *Conn, err error) {
 	c = &Conn{
 		DhcpServerHost: serverIP,
 		SecondsElapsed: 0,
@@ -35,6 +41,7 @@ func NewDHCPRequest(serverIP string, hostName, mac string) (c *Conn, err error) 
 		doneChan:       make(chan bool),
 		Mac:            mac,
 		HostName:       hostName,
+		relay:          make([]byte, 4, 4),
 	}
 
 	hw, err := net.ParseMAC(c.Mac)
@@ -42,6 +49,18 @@ func NewDHCPRequest(serverIP string, hostName, mac string) (c *Conn, err error) 
 		return nil, fmt.Errorf(err.Error())
 	}
 	c.MacByte = hw
+
+	if c.ifnname, err = net.InterfaceByName("en0"); err != nil {
+		return nil, err
+	}
+
+	if relay != "" {
+		if addr := net.ParseIP(relay); addr == nil || addr.To4() == nil {
+			return nil, fmt.Errorf("invalid relay ip")
+		} else {
+			c.relay = addr.To4()
+		}
+	}
 
 	if serverIP == "" {
 		serverIP = "255.255.255.255"
@@ -62,8 +81,7 @@ func NewDHCPRequest(serverIP string, hostName, mac string) (c *Conn, err error) 
 
 	c.UDPConn = conn
 	go c.listenUDP()
-
-	return c, c.Discovery()
+	return c, nil
 }
 
 func (c *Conn) listenUDP() {
@@ -71,6 +89,10 @@ func (c *Conn) listenUDP() {
 		IP:   net.IPv4(0, 0, 0, 0),
 		Port: 68,
 	}
+	if c.isRelay() {
+		laddr.Port = 67
+	}
+
 	conn, err := net.ListenUDP("udp", laddr)
 	if err != nil {
 		fmt.Printf("listen udp failed:%s\n", err.Error())
@@ -126,6 +148,59 @@ func (c *Conn) Discovery() error {
 	m.TransactionID = c.TransactionID
 	m.SecondsElapsed = c.SecondsElapsed
 	c.CurrentMessageType = m.MessageType
+	m.RelayAgentIP = c.relay
+
+	fmt.Printf("send message---->:\n%s\n", m.String())
+	if _, err := c.Write(m.Encode()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Conn) Decline(declineIP string) error {
+	server := net.ParseIP(c.DhcpServerHost)
+	options := []OptionInter{
+		GenOption54(server.To4()),
+		GenOption57(1500),
+		GenOption61(c.MacByte),
+	}
+	if c.HostName != "" {
+		options = append(options, GenOption12(c.HostName))
+	}
+
+	declineIp := net.ParseIP(declineIP)
+	m := GenDeclineMessage(c.Mac, declineIp.To4(), options...)
+	m.TransactionID = c.TransactionID
+	m.SecondsElapsed = c.SecondsElapsed
+	c.CurrentMessageType = m.MessageType
+	m.RelayAgentIP = c.relay
+
+	fmt.Printf("send message---->:\n%s\n", m.String())
+	if _, err := c.Write(m.Encode()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Conn) Release(release string) error {
+	server := net.ParseIP(c.DhcpServerHost)
+	options := []OptionInter{
+		GenOption54(server.To4()),
+		GenOption57(1500),
+		GenOption61(c.MacByte),
+	}
+	if c.HostName != "" {
+		options = append(options, GenOption12(c.HostName))
+	}
+
+	releaseIP := net.ParseIP(release)
+	m := GenReleaseMessage(c.Mac, releaseIP.To4(), options...)
+	m.TransactionID = c.TransactionID
+	m.SecondsElapsed = c.SecondsElapsed
+	c.CurrentMessageType = m.MessageType
+	m.RelayAgentIP = c.relay
 
 	fmt.Printf("send message---->:\n%s\n", m.String())
 	if _, err := c.Write(m.Encode()); err != nil {
@@ -170,6 +245,8 @@ func (c *Conn) handlerResponse(addr *net.UDPAddr, b []byte) bool {
 		requestMsg := GenRequestMessage(m, options...)
 		c.SecondsElapsed = requestMsg.SecondsElapsed
 		c.CurrentMessageType = requestMsg.MessageType
+		requestMsg.RelayAgentIP = c.relay
+
 		fmt.Printf("send message---->:\n%s\n", m.String())
 		if _, err := c.Write(requestMsg.Encode()); err != nil {
 			fmt.Printf("write request message failed:%s\n", err.Error())
