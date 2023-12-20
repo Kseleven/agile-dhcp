@@ -238,7 +238,11 @@ func (c *Conn) handlerResponse(addr *net.UDPAddr, b []byte) bool {
 
 	c.retry = 0
 	if c.CurrentMessageType == MessageTypeDiscover && m.MessageType == MessageTypeOffer {
-		var options []OptionInter
+		options := []OptionInter{
+			GenOption57(1500),
+			GenOption51(7776000),
+		}
+
 		if c.HostName != "" {
 			options = append(options, GenOption12(c.HostName))
 		}
